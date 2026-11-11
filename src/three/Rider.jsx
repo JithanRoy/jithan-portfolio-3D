@@ -9,6 +9,7 @@ import { updateEngine } from '../audio/engine.js';
 import { Bike } from './bike/Bike.jsx';
 import { bikeConfig } from './bike/bikeConfig.js';
 import { atmo } from './Atmosphere.jsx';
+import { stepBike, leanAngle } from './physics.js';
 
 const { damp, clamp } = THREE.MathUtils;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -72,11 +73,12 @@ export function Rider() {
   const glowTex = useGlowTexture();
 
   // Shared animation state read by the bike model.
-  const anim = useMemo(() => ({ wheel: 0, steer: 0, speed: 0, lean: 0 }), []);
+  const anim = useMemo(() => ({ wheel: 0, steer: 0, speed: 0, lean: 0, rpm: 0.12 }), []);
+  const bike = useMemo(() => ({ pos: ride.progress * ROAD_LENGTH, vel: 0, gear: 1, rpm: 0.12 }), []);
   const local = useMemo(
     () => ({
       kb: 0, kbAcc: 0, lateral: 0, prevLateral: 0, init: false, active: -2,
-      camPos: new THREE.Vector3(), look: new THREE.Vector3(),
+      camOffset: new THREE.Vector3(), lookOffset: new THREE.Vector3(), look: new THREE.Vector3(),
       pos: new THREE.Vector3(), tan: new THREE.Vector3(), tan2: new THREE.Vector3(),
       left: new THREE.Vector3(), tmp: new THREE.Vector3(),
     }),
@@ -109,13 +111,26 @@ export function Rider() {
 
     // ── Progress along the road (eased near stops via offsetToProgress).
     const target = offsetToProgress(scroll.offset);
-    const prev = ride.progress;
-    const p = reduced ? target : damp(prev, target, 5, dt);
+    const prevPos = bike.pos;
+    if (reduced) {
+      bike.pos = target * ROAD_LENGTH;
+      bike.vel = (bike.pos - prevPos) / dt;
+    } else {
+      // Inertia: accelerate, coast, brake. Sub-stepped on real time so low-FPS devices don't ride in slow motion.
+      let remaining = Math.min(rawDt, 0.25);
+      while (remaining > 1e-4) {
+        const h = Math.min(remaining, 1 / 60);
+        stepBike(bike, target * ROAD_LENGTH, h);
+        remaining -= h;
+      }
+    }
+    const p = bike.pos / ROAD_LENGTH;
     ride.progress = p;
-    const moved = (p - prev) * ROAD_LENGTH;
-    anim.wheel += moved / bikeConfig.wheelRadius;
-    anim.speed = damp(anim.speed, clamp(Math.abs(moved) / dt / 40, 0, 1), 4, dt);
+    anim.wheel += (bike.pos - prevPos) / bikeConfig.wheelRadius;
+    anim.speed = clamp(Math.abs(bike.vel) / 40, 0, 1);
+    anim.rpm = damp(anim.rpm, bike.rpm, 10, dt);
     ride.speed = anim.speed;
+    ride.velocity = bike.vel;
 
     // ── Lateral steering within the lane (A/D, arrows).
     const steerIn = (k.left ? 1 : 0) - (k.right ? 1 : 0);
@@ -135,7 +150,9 @@ export function Rider() {
 
     // Turn > 0 means the road bends left. Lean into it (negative roll = left).
     const turn = local.tan.z * local.tan2.x - local.tan.x * local.tan2.z;
-    const leanTarget = clamp(-(turn * 9 * (0.25 + anim.speed)) - latVel * 0.12, -0.45, 0.45);
+    // Real lean physics: angle grows with speed² × curvature (turn is measured over 8 m).
+    const curvature = turn / 8;
+    const leanTarget = clamp(-leanAngle(Math.min(Math.abs(bike.vel), 45), curvature) - latVel * 0.12, -0.6, 0.6);
     anim.lean = damp(anim.lean, reduced ? leanTarget * 0.4 : leanTarget, 5, dt);
     leanGroup.current.rotation.z = anim.lean;
     anim.steer = damp(anim.steer, clamp(turn * 3 + steerIn * 0.22, -0.4, 0.4), 6, dt);
@@ -149,18 +166,19 @@ export function Rider() {
     const portrait = size.width < size.height;
     const back = portrait ? 9 : 7.2;
     const height = portrait ? 3.8 : 3.0;
-    const desired = local.tmp.copy(local.pos).addScaledVector(local.tan, -back).addScaledVector(UP, height);
+    // Offsets are smoothed relative to the bike, so the camera never falls behind at high speed.
+    const desired = local.tmp.copy(local.tan).multiplyScalar(-back).addScaledVector(UP, height);
+    const lookAhead = local.look.copy(local.tan2).multiplyScalar(6).addScaledVector(UP, 1.1);
     if (!local.init) {
-      local.camPos.copy(desired);
-      local.look.copy(local.pos);
+      local.camOffset.copy(desired);
+      local.lookOffset.copy(lookAhead);
       local.init = true;
     }
     const follow = reduced ? 1 : 1 - Math.exp(-5 * dt);
-    local.camPos.lerp(desired, follow);
-    const lookAt = desired.copy(local.pos).addScaledVector(local.tan, 6).addScaledVector(UP, 1.1);
-    local.look.lerp(lookAt, follow);
-    camera.position.copy(local.camPos);
-    camera.lookAt(local.look);
+    local.camOffset.lerp(desired, follow);
+    local.lookOffset.lerp(lookAhead, follow);
+    camera.position.copy(local.pos).add(local.camOffset);
+    camera.lookAt(local.tmp.copy(local.pos).add(local.lookOffset));
     const baseFov = portrait ? 70 : 55;
     const fov = baseFov + (reduced ? 0 : anim.speed * 9);
     if (Math.abs(camera.fov - fov) > 0.01) {
@@ -168,7 +186,7 @@ export function Rider() {
       camera.updateProjectionMatrix();
     }
 
-    updateEngine(anim.speed);
+    updateEngine(anim.speed, anim.rpm);
 
     // ── Which stop's panel is up?
     const near = nearestStop(p);

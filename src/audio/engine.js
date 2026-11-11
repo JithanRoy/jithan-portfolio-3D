@@ -49,14 +49,14 @@ export function setSound(on) {
   }
 }
 
-/** Called every frame with speed 0..1. */
-export function updateEngine(speed) {
+/** Called every frame with speed 0..1 and engine rpm 0..1 (rpm drops on each gear shift). */
+export function updateEngine(speed, rpm = speed) {
   if (!enabled || !oscA || !ctx) return;
   const t = ctx.currentTime;
-  oscA.frequency.setTargetAtTime(42 + speed * 120, t, 0.08);
-  oscB.frequency.setTargetAtTime(21 + speed * 60, t, 0.08);
-  filter.frequency.setTargetAtTime(380 + speed * 900, t, 0.1);
-  engineGain.gain.setTargetAtTime(0.035 + speed * 0.06, t, 0.1);
+  oscA.frequency.setTargetAtTime(38 + rpm * 150, t, 0.05);
+  oscB.frequency.setTargetAtTime(19 + rpm * 75, t, 0.05);
+  filter.frequency.setTargetAtTime(350 + rpm * 1100 + speed * 300, t, 0.08);
+  engineGain.gain.setTargetAtTime(0.03 + rpm * 0.05 + speed * 0.02, t, 0.1);
 }
 
 export function honk() {

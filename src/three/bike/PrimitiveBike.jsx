@@ -46,7 +46,7 @@ export function PrimitiveBike({ anim }) {
     if (!ride.reducedMotion) {
       const t = state.clock.elapsedTime;
       rider.current.position.y = Math.sin(t * 7) * 0.012 * (0.4 + anim.speed) + Math.sin(t * 1.3) * 0.008;
-      torso.current.rotation.x = 0.55 + anim.speed * 0.25; // tuck in at speed
+      torso.current.rotation.x = 0.55 + anim.speed * 0.25 + anim.rpm * 0.05; // tuck in at speed, lean on the throttle
     }
   });
 

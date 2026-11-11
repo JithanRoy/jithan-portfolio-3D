@@ -8,6 +8,7 @@ import { progressToOffset } from './route.js';
 export const ride = {
   progress: 0, // 0..1 along the road (smoothed)
   speed: 0, // 0..1 normalized
+  velocity: 0, // m/s along the road (negative = rolling back)
   scrollEl: null, // ScrollControls' scroll container
   reducedMotion: false,
   keys: { up: false, down: false, left: false, right: false },
