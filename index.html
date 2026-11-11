@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!--app-head-->
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <style>
+      /* Static copy is for crawlers / no-JS visitors; hidden as soon as JS runs. */
+      html.js .static-seo { display: none; }
+      .static-seo { max-width: 860px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; color: #e8ecff; background: #0b1020; }
+      .static-seo a { color: #22d3ee; }
+      html, body { background: #0b1020; }
+    </style>
+  </head>
+  <body>
+    <div id="root"><!--app-static--></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
